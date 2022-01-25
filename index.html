@@ -1,0 +1,343 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>var Replacer</title>
+    <style>
+        *{
+            box-sizing: border-box;
+        }
+        html,body{
+            height: 100%;
+        }
+        .source{
+            height: 100%;
+            width: 100%;
+            overflow-x: hidden;
+            padding: 15px;
+        }
+        .source::selection{
+            background-color: rgb(202, 201, 201);
+            color: rgb(0, 0, 0);
+        }
+        .activeSource::selection{
+            background-color: blue!important;
+        }
+        #sampleContiner{
+            display: flex;
+        }
+        #solution{
+            position: absolute;
+            right: 0;
+            top: 0;
+            padding: 10px 0 10px 15px;
+            box-shadow: 0 0 2px green;
+            display: none;
+            background-color: aquamarine;
+            height: 99%;   
+            margin: 2px 2px 0 0;
+            overflow-y:scroll ;
+            overflow-x: hidden;
+        }
+        #header{
+            font-size: 17px;
+            font-family: 'Times New Roman', Times, serif;
+        }
+        #right{
+            background-color: green;
+            color: seashell;
+            padding: 5px;
+            margin: 0;
+            position: relative;
+        }
+        #wrong{
+            background-color: red;
+            color: seashell;
+            padding: 5px;
+            margin: 0;
+            position: relative;
+        }
+        #warning{
+            color: rgb(153, 255, 0);
+            font-style: italic;
+            font-size: 16px;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        #output{
+            box-shadow: 0 0 3px black ;
+            border: 2px solid gray;
+            height: 100%;
+            width: 100%;
+            overflow-x: hidden;
+            color: blue;
+            padding: 15px;
+        }
+        #outputContainer,#sourceContainer{
+            height: 45%;
+            position: relative;
+        }
+        #outputContainer button,#sourceContainer button{
+            position: absolute;
+            right: 0px;
+            top: 0px;
+            padding: 5px 18px;
+        }
+        button{
+            padding: 5px;
+        }
+        #buttonContainer{
+            display: flex;
+            justify-content: space-between;
+        }
+        #suggestion{
+            flex-grow: 1;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding-right: 50px;
+        }
+        #error{
+            color: rgb(255, 0, 0);
+        }
+        #alerter{
+            position: fixed;
+            top: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 20px;
+            transition: .5s;
+            opacity: 0;
+            color: cornsilk;
+        }
+        p{
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="alerter">alert here</div>
+    <div id="buttonContainer">
+        <button id="generator">Replace var</button>
+        <div id="suggestion"> try samples >>>>>></div>
+        <div id="sampleContiner">
+            <button class="sample">sample 1</button>
+            <button class="sample">sample 2</button>
+            <button class="sample">sample 3</button>
+        </div>
+    </div>
+    <div id='sourceContainer'>
+        <textarea name="source" id="source" class="source" cols="232" rows="23">
+            hey, I'm your "var" Replacer. Don't trust me blindly, afterall I'm just a system and I might have bugs. 
+            So, please always have a look at the codes after replacement. And don't forget to make sure the following things... 
+            
+            ** give me only function's body.
+            ** make sure there's no inner-function.
+        </textarea>  
+        <button id="eraser">clear</button>      
+    </div>
+    
+    <div id='outputContainer'>
+        <pre name="output" id="output"></pre>
+        <button id="copier">copy</button>
+    </div>
+    <script>
+        function alerterCaller(text,bgc,sto,btn){
+            btn.disabled = true;
+            alerter.innerText = text;
+            alerter.style.background = bgc;
+            alerter.style.opacity = '1';
+            setTimeout(() => {
+                alerter.style = '';
+                btn.disabled = false;
+            }, sto);
+        }
+
+        eraser.addEventListener('click',()=>{
+            source.value = '';
+        });
+
+        copier.addEventListener('click',()=>{
+            if(output.innerText == ''){
+                alerterCaller('nothing to be copied','red',1000,copier);
+                return;
+            }
+            navigator.clipboard.writeText(output.innerText);
+            alerterCaller('code copied','teal',1000,copier);
+        })
+
+        generator.addEventListener('click',()=>{
+            let sourceString = source.value;
+            sourceString = sourceString.replace(/(?<=for\s*\(\s*)var/g,`let`);
+            let [let_variables,const_variables] = get_let_const_variables(sourceString.match(/(?<=var\s+)\w+(?=\s?=\s?)/g));
+            if(!(let_variables||const_variables)) return;
+            if(const_variables.length){
+                const_variables.forEach(item=>{
+                    const constRegexp = new RegExp(`var\\s+${item}\\s?=`);
+                    sourceString = sourceString.replace(constRegexp,`const ${item} =`);
+                });
+            }
+            let let_variables_declaration = '';
+            if(let_variables.length){
+                let_variables_declaration = 'let ';
+                let_variables.forEach(item=>{
+                    let_variables_declaration+=item+',';
+                    const letRegexp = new RegExp(`var\\s+${item}\\s?=`,'g');
+                    sourceString = sourceString.replace(letRegexp,`${item} =`);
+                });
+                let_variables_declaration = let_variables_declaration.slice(0,-1)+';';
+            }
+            const constReplacer = /const(?=\s+(?<identifier>\w+)\s?=[\w\W\s]*?\k<identifier>\s*=[^=])/g;
+            sourceString = sourceString.replace(constReplacer,`let`);
+            output.innerText = let_variables_declaration+'\n'+sourceString;
+        });
+
+        function get_let_const_variables(array){
+            if(!array){
+                alerterCaller('nothing to be replaced','red',1000,copier);
+                return[];
+            }
+            let const_variables=[];
+            let let_variables=[];
+
+            while(array.length){
+                let elmnt = array.shift();//pop the very first element 
+                if(array.find(item=>item==elmnt)){// if there are any other likely element
+                    let_variables.push(elmnt);
+                    array = array.filter(item=>item!=elmnt);// filter out those likely elelments
+                }
+                else{
+                    const_variables.push(elmnt);
+                }
+            }
+            return [let_variables,const_variables];
+        }
+    </script>
+    <script>
+         //--------------------sampls----------------------
+         document.querySelectorAll('.sample').forEach((item,indx)=>{
+            item.addEventListener('click',()=>{
+                source.value = samples[indx];
+                
+            })
+        })
+        let samples = [
+`var div2 = cTag('div',{ 'class':'form-group row' });
+    var div3 = cTag('div',{ 'class':'col-xs-12' });
+        var div4 = cTag('div',{ 'class':"floatleft prelative",'id':"all_pages_header_picture" });
+            var div = cTag('div',{ 'class':'currentPicture' });
+            div.innerHTML = data.src;
+        div4.appendChild(div);
+            var div = cTag('div',{ 'class':'currentPicture' });
+            div.innerHTML = data.signature;
+        div4.appendChild(div);
+    div3.appendChild(div4);
+        var div4 = cTag('div',{ 'class':"floatleft prelative" });
+        div4.appendChild(cTag('div',{ 'class':'currentPicture' }));
+    div3.appendChild(div4);
+div2.appendChild(div3);`,
+`var pathArray = window.location.pathname.split('/');
+var segment1 = '';
+var segment2 = 'lists';
+var segment3 = '1';
+var segment4 = '';
+if(pathArray.length>1){
+    segment1 = pathArray[1];
+    if(pathArray.length>2){
+        segment2 = pathArray[2];
+        if(pathArray.length>3){segment3 = pathArray[3];}
+    }
+}
+
+var tdAttributes = [{'datatitle':_Date, 'nowrap':'nowrap', 'align':'left'},
+                    {'datatitle':_Invoice_No, 'nowrap':'nowrap', 'align':'right'},                    
+                    {'datatitle':_Current_Due,'class':'txtright'}];
+
+var uriStr = segment1+'/edit';`,
+
+`	if(checkTicketNo()==false){
+		document.getElementById('nextrepairticketno').focus();
+		return false;
+	}
+	var nextrepairticketno = parseInt(document.getElementById('nextrepairticketno').value);
+	var nextrepairticket_no = parseInt(document.getElementById('nextrepairticket_no').value);
+	if(nextrepairticket_no=='' || isNaN(nextrepairticket_no)){
+		nextrepairticket_no = 1;
+		document.getElementById('nextrepairticket_no').value = 1;
+	}
+	
+	if(nextrepairticketno=='' || isNaN(nextrepairticketno)){
+		document.getElementById('nextrepairticketno').value = nextrepairticket_no;
+	}	
+	
+	if(nextrepairticketno>nextrepairticket_no){
+		document.getElementById('nextrepairticket_no').value = nextrepairticketno;
+	}	
+	
+	for(var i = 0; i < repair_statusesarray.length; i++) {													
+		
+	} 
+	
+	var submitBtn = document.querySelector("#submit");
+        btnEnableDisable(submitBtn,_Saving,true);
+
+        var loader = document.querySelector('#showmessagehere');
+        loadingActive(loader);
+
+	
+        if(data.login != ''){window.location = '/'+data.login;}
+        else if(data.savemsg !='error' && data.id>0){
+            btnEnableDisable(submitBtn,_Update,false);
+	    document.getElementById("variables_id").value = data.id;
+	    document.querySelector("#oldlogo_size").value = document.querySelector("#logo_size").value;
+	    if(document.querySelector("#logo_placement").value != document.querySelector("#oldlogo_placement").value){
+	        window.location = window.location.href;
+	    }
+	}`]
+        let sampleSolutions = [
+            '',
+`\t\t<<< <span id='header'>Avoid using seAttribute other than next to the Element</span> >>>\t\t
+
+var div = document.createElement('div');									
+div.setAttribute('class','width80 height80 floatleft txtcenter cursor '+id);
+<pre id='right'>div.setAttribute('style','padding-top: 25px');      <span id='warning'><<< use here</span>
+div.setAttribute('title',icon);</pre>
+if(data.formData[id] == icon){
+    div.classList.add('boxborder');
+}									
+<pre id='wrong'>div.setAttribute('style','padding-top: 25px');      <span id='warning'><<< don't use here</span>
+div.setAttribute('title',icon);</pre>
+    var i = document.createElement('i');
+    i.setAttribute('class','fa fa-invelop fa-2');
+div.appendChild(i);
+div.addEventListener('click',function(){
+    document.querySelector('[name=icon]').value = this.title;
+})
+`,
+`\t\t<<< <span id='header'>Avoid using seAttribute into conditional block</span> >>>\t\t\t\t\t\t\t
+
+var divCol = document.createElement('div');
+divCol.setAttribute('class',"col-sm-10");
+    var input = document.createElement('input');    
+    input.setAttribute('type',"text");
+    input.setAttribute('maxlength',"25");
+    input.setAttribute('placeholder','Appointment field');
+    input.setAttribute('alt','Appointment field');
+    input.setAttribute('title','field');
+    input.setAttribute('name',"fieldNames[]");
+    input.setAttribute('value','field');
+    input.setAttribute('class',"form-control placeholder fieldNames");
+    <pre id='right'>if(data.requiredFields.includes(field)) input.setAttribute('readonly',"");      <span id='warning'><<< use single line condition</span></pre>
+    <pre id='wrong'>if(data.requiredFields.includes(field)){        <span id='warning'><<< don't use block</span>
+        input.setAttribute('readonly',"");
+    }</pre>        
+divCol.appendChild(input);
+`,
+        ]
+    </script>
+</body>
+</html>
